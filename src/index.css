@@ -1,0 +1,113 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Roboto', sans-serif;
+}
+
+#root {
+  height: 100%;
+}
+
+.main-background {
+  background: 
+    url('./assets/jr-korpa-k9TDpGMDavs-unsplash.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 100vh;
+  color: white; /* Ensures good contrast for text */
+  overflow: hidden; /* Prevent content overflow */
+}
+
+.main-background::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.7)); /* Semi-transparent overlay */
+  z-index: 0; /* Sits on top of the background image */
+}
+
+.main-content {
+  position: relative; /* Ensures the content stays above the overlay */
+  z-index: 3; /* Places content above the overlay */
+  padding: 20px;
+  text-align: center; /* Optional for centering text */
+}
+
+/* Custom scrollbar styles for glassmorphic container */
+.custom-scrollbar {
+  scrollbar-width: '10px';
+  scrollbar-color: rgba(255, 255, 255, 0.5) rgba(255, 255, 255, 0.1); /* Scrollbar thumb and track colors */
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px; /* Width of the scrollbar */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1); /* Semi-transparent track background */
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.5); /* Semi-transparent thumb color */
+  border-radius: 10px; /* Rounded corners for the scrollbar thumb */
+  border: 2px solid rgba(255, 255, 255, 0.3); /* Border to enhance the glass effect */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.7); /* Lighter thumb color on hover */
+}
+
+
+.stats-screen-container {
+  height: 90%;
+  position: relative; /* Ensures the content stays above the overlay */
+  z-index: 3; /* Places content above the overlay */
+  padding: 20px;
+  text-align: center; /* Optional for centering text */
+  margin-bottom: -20px;
+  margin-left: -10px;
+  margin-right: -10px;
+}
+
+.main-content-stats {
+  height: 88%; /* Full height of the parent container */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center the content vertically */
+  align-items: center; /* Center the content horizontally */
+  text-align: center;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.1); /* Optional: Add a translucent overlay */
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative; /* Ensures the content stays above the overlay */
+  z-index: 3; /* Places content above the overlay */
+  
+}
+
+.components-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* Adds space between components */
+  max-height: 75vh; /* Constrains the height of the components */
+  overflow-y: auto; /* Enables scrolling if content overflows */
+  width: 90%;
+}
+
+.components-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.components-container::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 122, 122, 0.3);
+  border-radius: 4px;
+}
+
+.components-container::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.5);
+}
