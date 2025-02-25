@@ -43,7 +43,10 @@ export function OrdersProvider({ children }) {
 
 
   // Initialize OpenAI client
-  const openai = 'panda'
+  const openai = new OpenAI({
+    apiKey: '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',
+    dangerouslyAllowBrowser: true
+  });
 
   useEffect(() => {
     fetchOrders();
