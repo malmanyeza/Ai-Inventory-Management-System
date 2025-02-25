@@ -20,15 +20,16 @@ const StatsScreen = () => {
     <div 
       style={{
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        height: '90%',
-        margin: '0 10px 5px 10px',
-        borderRadius: '10px',
-        padding: '20px',
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          height: '95%',
+          margin: '0 10px 5px 10px',
+          borderRadius: '10px',
+          padding: '20px',
+          position: 'relative',
+          display:'flex',
+          flexDirection: 'column',
+          paddingTop:'50px'
       }}
     >
       <h1 style={{ 

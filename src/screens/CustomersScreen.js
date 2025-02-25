@@ -28,11 +28,12 @@ const CustomersScreen = () => {
       backgroundColor: 'rgba(255, 255, 255, 0.1)',
       backdropFilter: 'blur(10px)',
       WebkitBackdropFilter: 'blur(10px)',
-      height: '90%',
+      height: '95%',
       margin: '0 10px 5px 10px',
       borderRadius: '10px',
       padding: '20px',
       position: 'relative',
+      paddingTop:'50px'
     }}>
       {/* Header Section */}
       <Box sx={{

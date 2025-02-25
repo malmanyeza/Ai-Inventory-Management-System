@@ -38,6 +38,8 @@ const Header = () => {
         paddingTop:3,
         paddingBottom:2,
         borderRadius: '10px',
+        paddingLeft:'20px',
+        paddingRight:'20px'
       }}
     >
       {/* Logo */}

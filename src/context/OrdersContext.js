@@ -19,8 +19,8 @@ export function OrdersProvider({ children }) {
   const [assistantMessages, setAssistantMessages] = useState([]);
   const [assistantThread, setAssistantThread] = useState(null);
   const [isAssistantProcessing, setIsAssistantProcessing] = useState(false);
-  const { customers, companyDetails } = useCustomers();
-  const { inventory } = useInventory();
+  const { customers, companyDetails, addCustomer } = useCustomers();
+  const { inventory, addProduct } = useInventory();
   console.log("Customers in OrdersContext:", customers);
   
   const products = inventory;
@@ -44,7 +44,7 @@ export function OrdersProvider({ children }) {
 
   // Initialize OpenAI client
   const openai = new OpenAI({
-    apiKey: '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',
+    apiKey: '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',
     dangerouslyAllowBrowser: true
   });
 
@@ -261,52 +261,64 @@ doc.setFont(undefined, "normal");
  
 };
 
-  const createInvoiceWithAssistant = async (userMessage) => {
+const createInvoiceWithAssistant = async (userMessage) => {
+  // Create dynamic instructions that mention all three capabilities
+  const assistantInstructions = `
+    You are an invoice and management assistant with three capabilities:
     
-    // Create dynamic instructions
-    const assistantInstructions = `
-      You are an invoice assistant. Follow these rules:
-      1. When users mention customers/products, use fuzzy matching to find the closest match:
-        - Customers: ${customers.map(c => c.name).join(', ')}
-        - Products: ${products.map(p => `${p.name} ($${p.pricePerCase}/case)`).join(', ')}
+    1. **Create invoices:** When the user mentions customers or products in an invoice context,
+       use fuzzy matching to find the closest match:
+       - Customers: ${customers.map(c => c.name).join(', ')}
+       - Products: ${products.map(p => `${p.name} ($${p.pricePerCase}/case)`).join(', ')}
+       
+       If the match isn’t exact, ask for confirmation. Return JSON with:
+         - customerName (fuzzy matched)
+         - items with productName (fuzzy matched) and quantity
+         - date (YYYY-MM-DD)
+       
+       Final response example:
+         "Invoice for OK Zimbabwe Ltd has been created with a total amount of $1,198.08. You can check the invoice from the 'Downloads' folder on your machine."
+    
+    2. **Add customers:** When the user wants to add a new customer, call the 'add_customer' function.
+       For example, they might say something like, "I would like to add a new customer called ABC Trading". but make sure all parameters are provided.
+       Use the following parameters:
+         - tradeName
+         - registeredName
+         - vatNumber
+         - tinNumber
+         - email
+         - phone
+         - address
+       
+       Final response example:
+         "Customer 'ABC Trading' has been added successfully."
+    
+    3. **Add products:** When the user wants to add a new product, call the 'add_product' function.
+       For example, they might say something like, "I would like to add 10 Mazoe Orange crush to the database". but make sure all parameters are provided.
+       Use the following parameters:
+         - name
+         - pricePerCase
+         - unitsPerCase
+         - volume
+       
+       Final response example:
+         "Product 'Mazoe Orange Crush' has been added successfully."
+    
+    Decide which action to perform based on the user's prompt.
+    
+    User message: "${userMessage}"
+  `;
 
-      2. If the match isn't exact, ask the user for confirmation:
-        - Example: "Did you mean 'OK Zimbabwe Ltd' instead of 'OK Zimbabwe'?"
-
-      3. Handle typos and partial matches intelligently:
-        - "fod lovers" → "Food Lovers"
-        - "orange crush" → "Mazoe Orange Crush"
-
-      4. Always return JSON with:
-        - customerName (fuzzy matched)
-        - items with productName (fuzzy matched) and quantity
-        - date (YYYY-MM-DD)
-
-      5. When providing the final response to the user:
-        - Mention the customer name and the total invoice amount.
-        - Inform the user that they can check the invoice from the "Downloads" folder on their machine.
-        - Keep the response concise and user-friendly.
-
-      Example final response:
-      "Invoice for OK Zimbabwe Ltd has been created with a total amount of $1,198.08. You can check the invoice from the 'Downloads' folder on your machine."
-
-      User message: "${userMessage}"
-    `;
-
-
-    setIsAssistantProcessing(true);
-    try {
-      
-
-      // Create assistant once (store the ID in environment variables)
-      let assistantId = 'asst_T7pGAOzItpvTJgex6kKXaAGV'
-
-
-      if (!assistantId) {
-        const assistant = await openai.beta.assistants.create({
-          name: "Invoice Assistant",
-          instructions: assistantInstructions,
-          tools: [{
+  setIsAssistantProcessing(true);
+  try {
+    // Create (or reuse) the assistant with all three tools
+    let assistantId = 'asst_aN7Pw0ykxDmX5K2Q0mTHe39e';
+    if (!assistantId) {
+      const assistant = await openai.beta.assistants.create({
+        name: "Invoice and Management Assistant",
+        instructions: assistantInstructions,
+        tools: [
+          {
             type: "function",
             function: {
               name: "finalize_invoice",
@@ -316,7 +328,7 @@ doc.setFont(undefined, "normal");
                 type: "object",
                 properties: {
                   customerName: { 
-                    type: "string",  // Changed from string to number
+                    type: "string",
                     description: `Must match one of: ${customers.map(c => c.name).join(', ')}`
                   },
                   items: {
@@ -331,7 +343,7 @@ doc.setFont(undefined, "normal");
                         quantity: { type: "number" }
                       },
                       additionalProperties: false,
-                      required: ["productName", "quantity"]  // Fixed required fields
+                      required: ["productName", "quantity"]
                     }
                   },
                   date: { 
@@ -340,40 +352,82 @@ doc.setFont(undefined, "normal");
                   }
                 },
                 additionalProperties: false,
-                required: ["customerName", "items", "date"]  // Fixed required fields
+                required: ["customerName", "items", "date"]
               }
             }
-          }],
-          model: "gpt-4o"
-        });
-        assistantId = assistant.id;
-        console.log("New assistant created:", assistantId);
-      }
-
-
-      // Create or continue thread
-      let threadId = 'thread_JWClDt1T9IiHHA9yoA67a7Fq';
-      if (!threadId) {
-        const thread = await openai.beta.threads.create();
-        console.log("New thread created:", thread.id);
-        setAssistantThread(thread);
-      }
-
-      // Add user message to thread
-      await openai.beta.threads.messages.create(threadId, {
-        role: "user",
-        content: userMessage
+          },
+          {
+            type: "function",
+            function: {
+              name: "add_customer",
+              description: "Adds a new customer to the database",
+              strict: true,
+              parameters: {
+                type: "object",
+                properties: {
+                  tradeName: { type: "string", description: "Trade name of the customer" },
+                  registeredName: { type: "string", description: "Registered name of the customer" },
+                  vatNumber: { type: "string", description: "VAT number of the customer" },
+                  tinNumber: { type: "string", description: "TIN number of the customer" },
+                  email: { type: "string", description: "Email address of the customer" },
+                  phone: { type: "string", description: "Phone number of the customer" },
+                  address: { type: "string", description: "Address of the customer" }
+                },
+                additionalProperties: false,
+                required: ["tradeName", "registeredName", "vatNumber", "tinNumber", "email", "phone", "address"]
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
+              name: "add_product",
+              description: "Adds a new product to the database",
+              strict: true,
+              parameters: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Name of the product" },
+                  pricePerCase: { type: "number", description: "Price per case of the product" },
+                  unitsPerCase: { type: "number", description: "Number of units per case" },
+                  volume: { type: "number", description: "Volume of the product" }
+                },
+                additionalProperties: false,
+                required: ["name", "pricePerCase", "unitsPerCase", "volume"]
+              }
+            }
+          }
+        ],
+        model: "gpt-4o-mini"
       });
+      assistantId = assistant.id;
+      console.log("New assistant created:", assistantId);
+    }
 
-      let run = await openai.beta.threads.runs.createAndPoll(threadId, {
-        assistant_id: assistantId,
-        tools: [{
+    // Create or continue thread
+    let threadId = 'thread_HIOoNM6oxvVvrLdnVLXKEYfk';
+    if (!threadId) {
+      const thread = await openai.beta.threads.create();
+      console.log("New thread created:", thread.id);
+      setAssistantThread(thread);
+    }
+
+    // Add the user message
+    await openai.beta.threads.messages.create(threadId, {
+      role: "user",
+      content: userMessage
+    });
+
+    // Create and poll the run
+    let run = await openai.beta.threads.runs.createAndPoll(threadId, {
+      assistant_id: assistantId,
+      tools: [ 
+        // Make sure the same tools are defined here as in the assistant creation
+        {
           type: "function",
           function: {
             name: "finalize_invoice",
             strict: true,
-            description: "Finalizes the invoice with complete data",
-            // Update your function parameters schema in BOTH places (assistant creation and run tools):
             parameters: {
               type: "object",
               properties: {
@@ -405,197 +459,259 @@ doc.setFont(undefined, "normal");
               required: ["customerName", "items", "date"]
             }
           }
-        }]
-      });
+        },
+        {
+          type: "function",
+          function: {
+            name: "add_customer",
+            strict: true,
+            parameters: {
+              type: "object",
+              properties: {
+                tradeName: { type: "string", description: "Trade name of the customer" },
+                registeredName: { type: "string", description: "Registered name of the customer" },
+                vatNumber: { type: "string", description: "VAT number of the customer" },
+                tinNumber: { type: "string", description: "TIN number of the customer" },
+                email: { type: "string", description: "Email address of the customer" },
+                phone: { type: "string", description: "Phone number of the customer" },
+                address: { type: "string", description: "Address of the customer" }
+              },
+              additionalProperties: false,
+              required: ["tradeName", "registeredName", "vatNumber", "tinNumber", "email", "phone", "address"]
+            }
+          }
+        },
+        {
+          type: "function",
+          function: {
+            name: "add_product",
+            strict: true,
+            parameters: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Name of the product" },
+                pricePerCase: { type: "number", description: "Price per case of the product" },
+                unitsPerCase: { type: "number", description: "Number of units per case" },
+                volume: { type: "number", description: "Volume of the product" }
+              },
+              additionalProperties: false,
+              required: ["name", "pricePerCase", "unitsPerCase", "volume"]
+            }
+          }
+        }
+      ]
+    });
 
-      
-
-      // Handle function calling
-      if (run.status === 'requires_action') {
-        const toolOutputs = run.required_action.submit_tool_outputs.tool_calls.map((toolCall) => {
-          if (toolCall.function.name === 'finalize_invoice') {
-            let rawData;
-            
-            try {
-              // Parse and validate input
-              rawData = JSON.parse(toolCall.function.arguments);
-              console.log('Here are the customers that we have', customers);
-              
-              // Fuzzy match customer name
-              const customerNames = customers.map(c => c.name);
-              const matchedCustomerName = findClosestMatch(rawData.customerName, customerNames);
-              
-              if (!matchedCustomerName) {
-                throw new Error(`No close match found for customer "${rawData.customerName}". Valid customers: ${customerNames.join(', ')}`);
+    // Handle function calling
+    if (run.status === 'requires_action') {
+      const toolOutputs = run.required_action.submit_tool_outputs.tool_calls.map((toolCall) => {
+        // --- Invoice creation ---
+        if (toolCall.function.name === 'finalize_invoice') {
+          let rawData;
+          try {
+            rawData = JSON.parse(toolCall.function.arguments);
+            // Fuzzy match customer name
+            const customerNames = customers.map(c => c.name);
+            const matchedCustomerName = findClosestMatch(rawData.customerName, customerNames);
+            if (!matchedCustomerName) {
+              throw new Error(`No close match found for customer "${rawData.customerName}". Valid customers: ${customerNames.join(', ')}`);
+            }
+            // If a fuzzy match occurred, ask for confirmation
+            if (matchedCustomerName.toLowerCase() !== rawData.customerName.toLowerCase()) {
+              return {
+                tool_call_id: toolCall.id,
+                output: JSON.stringify({
+                  confirmationRequired: true,
+                  message: `Did you mean "${matchedCustomerName}" instead of "${rawData.customerName}"? Please confirm.`
+                })
+              };
+            }
+            // Process each product item with fuzzy matching
+            const productNames = products.map(p => p.name);
+            const items = rawData.items.map(item => {
+              const matchedProductName = findClosestMatch(item.productName, productNames);
+              if (!matchedProductName) {
+                throw new Error(`No close match found for product "${item.productName}". Valid products: ${productNames.join(', ')}`);
               }
-      
-              // Confirm the match with the user
-              if (matchedCustomerName.toLowerCase() !== rawData.customerName.toLowerCase()) {
+              if (matchedProductName.toLowerCase() !== item.productName.toLowerCase()) {
                 return {
                   tool_call_id: toolCall.id,
                   output: JSON.stringify({
                     confirmationRequired: true,
-                    message: `Did you mean "${matchedCustomerName}" instead of "${rawData.customerName}"? Please confirm.`
+                    message: `Did you mean "${matchedProductName}" instead of "${item.productName}"? Please confirm.`
                   })
                 };
               }
-      
-              // Find the matched customer
-              const customer = customers.find(c => c.name === matchedCustomerName);
-      
-              // Fuzzy match product names
-              const productNames = products.map(p => p.name);
-              const items = rawData.items.map(item => {
-                const matchedProductName = findClosestMatch(item.productName, productNames);
-                
-                if (!matchedProductName) {
-                  throw new Error(`No close match found for product "${item.productName}". Valid products: ${productNames.join(', ')}`);
-                }
-      
-                // Confirm the match with the user
-                if (matchedProductName.toLowerCase() !== item.productName.toLowerCase()) {
-                  return {
-                    tool_call_id: toolCall.id,
-                    output: JSON.stringify({
-                      confirmationRequired: true,
-                      message: `Did you mean "${matchedProductName}" instead of "${item.productName}"? Please confirm.`
-                    })
-                  };
-                }
-      
-                // Find the matched product
-                const product = products.find(p => p.name === matchedProductName);
-      
-                // Calculate pricing fields
-                const unitPrice = parseFloat((product.pricePerCase / (1 + VAT_RATE)).toFixed(2));
-                const totalExcl = parseFloat((unitPrice * item.quantity).toFixed(2));
-                const vatAmount = parseFloat((totalExcl * VAT_RATE).toFixed(2));
-                const totalIncl = parseFloat((totalExcl + vatAmount).toFixed(2));
-      
-                return {
-                  productId: product.id,
-                  name: product.name,
-                  pricePerCase: product.pricePerCase,
-                  quantity: item.quantity,
-                  unitsPerCase: product.unitsPerCase,
-                  volume: product.volume,
-                  unitPrice, // Add unitPrice
-                  totalExcl, // Add totalExcl
-                  vatAmount, // Add vatAmount
-                  totalIncl  // Add totalIncl
-                };
-              });
-      
-              // Calculate totals
-              const subtotalExcl = items.reduce((sum, item) => 
-                sum + (item.pricePerCase / (1 + VAT_RATE)) * item.quantity, 0);
-              const vatTotal = subtotalExcl * VAT_RATE;
-              const invoiceTotal = subtotalExcl + vatTotal;
-      
-              // Build final data
-              const fullInvoiceData = {
-                date: rawData.date,
-                companyDetails,
-                customer: {
-                  id: customer.id,
-                  name: customer.name,
-                  tin: customer.tin,
-                  vat: customer.vatNumber,
-                  address: customer.address,
-                  contact: customer.contact
-                },
-                items,
-                subtotalExcl: parseFloat(subtotalExcl.toFixed(2)),
-                vatTotal: parseFloat(vatTotal.toFixed(2)),
-                invoiceTotal: parseFloat(invoiceTotal.toFixed(2))
-              };
-      
+              // Find the actual product and calculate pricing (using your VAT_RATE and companyDetails)
+              const product = products.find(p => p.name === matchedProductName);
+              const unitPrice = parseFloat((product.pricePerCase / (1 + VAT_RATE)).toFixed(2));
+              const totalExcl = parseFloat((unitPrice * item.quantity).toFixed(2));
+              const vatAmount = parseFloat((totalExcl * VAT_RATE).toFixed(2));
+              const totalIncl = parseFloat((totalExcl + vatAmount).toFixed(2));
               return {
-                tool_call_id: toolCall.id,
-                output: JSON.stringify(fullInvoiceData)
+                productId: product.id,
+                name: product.name,
+                pricePerCase: product.pricePerCase,
+                quantity: item.quantity,
+                unitsPerCase: product.unitsPerCase,
+                volume: product.volume,
+                unitPrice,
+                totalExcl,
+                vatAmount,
+                totalIncl
               };
+            });
       
-            } catch (error) {
-              // Handle different error cases
-              if (!rawData) {
-                return {
-                  tool_call_id: toolCall.id,
-                  output: JSON.stringify({
-                    error: true,
-                    message: `Failed to parse function arguments: ${error.message}`,
-                    receivedInput: toolCall.function.arguments
-                  })
-                };
-              }
-              
+            // Calculate totals
+            const subtotalExcl = items.reduce((sum, item) => 
+              sum + (item.pricePerCase / (1 + VAT_RATE)) * item.quantity, 0);
+            const vatTotal = subtotalExcl * VAT_RATE;
+            const invoiceTotal = subtotalExcl + vatTotal;
+      
+            // Build the final invoice data
+            const customer = customers.find(c => c.name === matchedCustomerName);
+            const fullInvoiceData = {
+              date: rawData.date,
+              companyDetails,
+              customer: {
+                id: customer.id,
+                name: customer.name,
+                tin: customer.tin,
+                vat: customer.vatNumber,
+                address: customer.address,
+                contact: customer.contact
+              },
+              items,
+              subtotalExcl: parseFloat(subtotalExcl.toFixed(2)),
+              vatTotal: parseFloat(vatTotal.toFixed(2)),
+              invoiceTotal: parseFloat(invoiceTotal.toFixed(2))
+            };
+      
+            return {
+              tool_call_id: toolCall.id,
+              output: JSON.stringify(fullInvoiceData)
+            };
+      
+          } catch (error) {
+            if (!rawData) {
               return {
                 tool_call_id: toolCall.id,
                 output: JSON.stringify({
                   error: true,
-                  message: error.message,
-                  receivedNames: {
-                    customerName: rawData.customerName,
-                    productNames: rawData.items?.map(i => i.productName)
-                  }
+                  message: `Failed to parse function arguments: ${error.message}`,
+                  receivedInput: toolCall.function.arguments
                 })
               };
             }
-          }
-        });
-      
-        // Submit tool outputs
-        run = await openai.beta.threads.runs.submitToolOutputsAndPoll(
-          threadId,
-          run.id,
-          { tool_outputs: toolOutputs }
-        );
-      
-        // Process the final invoice
-        if (toolOutputs.length > 0) {
-          try {
-            const result = JSON.parse(toolOutputs[0].output);
-            
-            if (result.confirmationRequired) {
-              // Ask the user for confirmation
-              setAssistantMessages(prev => [...prev, { role: 'assistant', content: result.message }]);
-              return;
-            }
-      
-            if (result.error) {
-              console.error("Assistant error:", result.message);
-              setError(result.message);
-            } else {
-              generateInvoicePDF(result);
-              // const orderId = await addOrder(result);
-              // const orderDataWithId = { ...result, orderId };
-              
-            }
-          } catch (parseError) {
-            console.error("Failed to parse response:", parseError);
-            setError("Invalid response format from assistant");
+            return {
+              tool_call_id: toolCall.id,
+              output: JSON.stringify({
+                error: true,
+                message: error.message,
+                receivedNames: {
+                  customerName: rawData.customerName,
+                  productNames: rawData.items?.map(i => i.productName)
+                }
+              })
+            };
           }
         }
+        // --- Add Customer ---
+        else if (toolCall.function.name === 'add_customer') {
+          try {
+            const rawData = JSON.parse(toolCall.function.arguments);
+            // Here you could perform additional validations before adding
+            console.log('Function name was detected to be add customer and here is the raw data', rawData);
+            addCustomer(rawData); // your API call to add the customer
+            return {
+              tool_call_id: toolCall.id,
+              output: JSON.stringify({ success: true, message: `Customer '${rawData.tradeName}' added successfully.` })
+            };
+          } catch (error) {
+            return {
+              tool_call_id: toolCall.id,
+              output: JSON.stringify({
+                error: true,
+                message: error.message,
+                receivedInput: toolCall.function.arguments
+              })
+            };
+          }
+        }
+        // --- Add Product ---
+        else if (toolCall.function.name === 'add_product') {
+          try {
+            const rawData = JSON.parse(toolCall.function.arguments);
+            // You can add further validations here if needed
+            addProduct(rawData); // your API call to add the product
+            return {
+              tool_call_id: toolCall.id,
+              output: JSON.stringify({ success: true, message: `Product '${rawData.name}' added successfully.` })
+            };
+          } catch (error) {
+            return {
+              tool_call_id: toolCall.id,
+              output: JSON.stringify({
+                error: true,
+                message: error.message,
+                receivedInput: toolCall.function.arguments
+              })
+            };
+          }
+        }
+      });
+      
+      // Submit all tool outputs back to the assistant and poll for results
+      run = await openai.beta.threads.runs.submitToolOutputsAndPoll(
+        threadId,
+        run.id,
+        { tool_outputs: toolOutputs }
+      );
+      
+      // Process the final response from the assistant
+      if (toolOutputs.length > 0) {
+        try {
+          const result = JSON.parse(toolOutputs[0].output);
+          if (result.confirmationRequired) {
+            setAssistantMessages(prev => [...prev, { role: 'assistant', content: result.message }]);
+            return;
+          }
+          if (result.error) {
+            console.error("Assistant error:", result.message);
+            setError(result.message);
+          } else {
+            // Handle different response types:
+            if (result.invoiceTotal !== undefined) {
+              // Invoice was created
+              generateInvoicePDF(result);
+            } 
+          }
+        } catch (parseError) {
+          console.error("Failed to parse response:", parseError);
+          setError("Invalid response format from assistant");
+        }
       }
-
-    // Get final messages
+    }
+    
+    // Retrieve and update the thread messages
     const messages = await openai.beta.threads.messages.list(threadId);
     const orderedMessages = messages.data.reverse();
-    setAssistantMessages(orderedMessages);
-
-    // Handle any final assistant response
+    setAssistantMessages(orderedMessages.map(m => ({
+  id: m.id,
+  role: m.role,
+  content: m.content // This is the array of content blocks
+})));
+    
     const lastMessage = orderedMessages.find(m => m.role === 'assistant');
-    if (lastMessage) {
-      // Display assistant response to user
-      console.log("Assistant response:", lastMessage.content[0].text.value);
-    }
+    
+  } catch (error) {
+    setError(error.message);
+    console.error("Assistant error:", error);
+  } finally {
+    setIsAssistantProcessing(false);
+  }
+};
 
-    } catch (error) {
-      setError(error.message);
-      console.error("Assistant error:", error);
-    } finally {
-      setIsAssistantProcessing(false);
-    }
-  };
 
  
 

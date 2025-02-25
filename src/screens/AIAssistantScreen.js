@@ -4,6 +4,14 @@ import Chats from '../components/AIAssistantScreen/Chats';
 import '../index.css';
 import Header from '../components/Header';
 import { useOrders } from '../context/OrdersContext';
+import { Box, Typography, List, ListItem, ListItemIcon, ListItemText, Paper } from '@mui/material';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import QueryStatsIcon from '@mui/icons-material/QueryStats';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import { use } from 'react';
+
+
 
 const AIAssistantScreen = () => {
   const { 
@@ -14,6 +22,8 @@ const AIAssistantScreen = () => {
   } = useOrders();
   
   const [localMessages, setLocalMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);  // Typing indicator state
+  const [firstMessageSent, setFirstMessageSent] = useState(false)
 
   // Sync context messages with local state for display
   useEffect(() => {
@@ -24,24 +34,31 @@ const AIAssistantScreen = () => {
     setLocalMessages(formattedMessages);
   }, [assistantMessages]);
 
+  useEffect(()=>{
+    localMessages.length>0?setFirstMessageSent(true):null
+  },[localMessages])
+
   const handleSendMessage = async (message) => {
     // Add user message to local state immediately
     setLocalMessages(prev => [...prev, { sender: 'user', text: message }]);
     
     try {
-      // Send to AI assistant
-      if (message.toLowerCase().startsWith('yes')) {
-        // User confirmed the match, proceed with the invoice
-        await createInvoiceWithAssistant(message);
-      } else if (message.toLowerCase().startsWith('no')) {
-        // User rejected the match, ask for clarification
-        setAssistantMessages(prev => [...prev, { role: 'assistant', content: "Please provide the correct customer or product name." }]);
-      } else {
-        // Process the message normally
-        await createInvoiceWithAssistant(message);
-      }
+      setIsTyping(true); // Show typing indicator
+
+      // Simulate delay for a more realistic typing effect
+      setTimeout(async () => {
+        if (message.toLowerCase().startsWith('yes')) {
+          await createInvoiceWithAssistant(message);
+        } else if (message.toLowerCase().startsWith('no')) {
+          setAssistantMessages(prev => [...prev, { role: 'assistant', content: "Please provide the correct customer or product name." }]);
+        } else {
+          await createInvoiceWithAssistant(message);
+        }
+        setIsTyping(false); // Hide typing indicator after response
+      }, 1500);
       
     } catch (error) {
+      setIsTyping(false);
       // Show error message if something goes wrong
       setLocalMessages(prev => [
         ...prev,
@@ -62,47 +79,72 @@ const AIAssistantScreen = () => {
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
-          height: '90%',
+          height: '95%',
           margin: '0 10px 5px 10px',
           borderRadius: '10px',
           padding: '20px',
           position: 'relative',
+          paddingTop:'50px'
         }}
       >
         {/* Header and Description */}
         {localMessages.length < 1 && (
-          <div>
-            <h1>AI Stock Manager</h1>
-            <p>How can I help you today? You can:</p>
-            <ul>
-              <li>Create new invoices</li>
-              <li>Check stock levels</li>
-              <li>Query order status</li>
-              <li>Generate sales reports</li>
-            </ul>
-          </div>
-        )}
+          <Box
+            sx={{
+              textAlign: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              borderRadius: '12px',
+              padding: '20px',
+              color: 'white',
+              boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.2)',
+              maxWidth: '600px',
+              margin: '0 auto 20px auto',
+              
+            }}
+          >
+            <Typography variant="h4" fontWeight="bold" gutterBottom>
+              📊 AI Stock Manager
+            </Typography>
+            <Typography variant="body1" sx={{ opacity: 0.8 }}>
+              How can I assist you today? You can:
+            </Typography>
 
-        {/* Chats Component */}
+            <List sx={{ mt: 2, textAlign: 'left', display: 'inline-block' }}>
+              {[
+                { text: 'Create new invoices', icon: <ReceiptIcon /> },
+                { text: 'Check stock levels', icon: <InventoryIcon /> },
+                { text: 'Query order status', icon: <QueryStatsIcon /> },
+                { text: 'Generate sales reports', icon: <AssessmentIcon /> },
+              ].map((item, index) => (
+                <ListItem key={index} sx={{ color: 'white', display: 'flex', alignItems: 'center' }}>
+                  <ListItemIcon sx={{ color: '#ffcc00' }}>{item.icon}</ListItemIcon>
+                  <ListItemText primary={item.text} />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        )}
+        
+        {firstMessageSent && (
+        
         <div
           style={{
             marginLeft: '40px',
             width: '90%',
-            maxHeight: '400px',
+            maxHeight: '450px',
             overflowY: 'auto',
             alignSelf: 'center',
           }}
           className="custom-scrollbar"
         >
-          <Chats messages={localMessages} isLoading={isAssistantProcessing} />
+          <Chats messages={localMessages} isLoading={isTyping} /> {/* Pass isTyping */}
         </div>
-
-        {/* Message Input */}
+        )}
         <div
           style={{
             marginTop: '20px',
             position: 'fixed',
-            bottom: '50px',
+            bottom: firstMessageSent? '20px':'50px',
             left: '50%',
             transform: 'translateX(-50%)',
             width: '80%',
@@ -110,7 +152,7 @@ const AIAssistantScreen = () => {
         >
           <MessageInput 
             onSendMessage={handleSendMessage} 
-            isProcessing={isAssistantProcessing}
+            isProcessing={isTyping}
           />
         </div>
       </div>

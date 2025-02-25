@@ -16,10 +16,10 @@ const app = initializeApp(firebaseConfig);
 
 // Firestore Emulator
 const db = getFirestore(app);
-// connectFirestoreEmulator(db, "localhost", 8080);
+connectFirestoreEmulator(db, "localhost", 8080);
 
 // Auth Emulator
 const auth = getAuth(app);
-// connectAuthEmulator(auth, "http://localhost:9099");
+connectAuthEmulator(auth, "http://localhost:9099");
 
 export { db, auth };
